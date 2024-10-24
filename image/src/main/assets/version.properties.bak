@@ -1,0 +1,4 @@
+versionName=76.1.1-beta.19
+environment=beta
+commonVersion=0.0.76
+validateAuthentication=true
