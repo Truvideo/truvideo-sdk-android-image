@@ -1,0 +1,4 @@
+versionName=76.1.2-rc.23
+environment=beta
+commonVersion=0.0.76
+validateAuthentication=true
