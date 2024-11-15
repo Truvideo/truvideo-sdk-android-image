@@ -1,0 +1,147 @@
+plugins {
+    id 'com.android.library'
+    id 'org.jetbrains.kotlin.android'
+    id 'maven-publish'
+    id 'org.jetbrains.kotlin.plugin.serialization'
+}
+
+def propertiesFile = rootProject.file("image/src/main/assets/version-image.properties")
+def properties = new Properties()
+properties.load(new FileInputStream(propertiesFile))
+
+android {
+    namespace 'com.truvideo.sdk.image'
+    compileSdk 34
+
+    defaultConfig {
+        minSdk 24
+        targetSdk 34
+        versionName properties.getProperty("versionName")
+        vectorDrawables {
+            useSupportLibrary true
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+
+    buildFeatures {
+        compose = true
+        buildConfig = true
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+
+    composeOptions {
+        kotlinCompilerExtensionVersion '1.5.3'
+    }
+
+    kotlinOptions {
+        jvmTarget = '1.8'
+    }
+
+    packaging {
+        resources {
+            it.excludes += '/META-INF/{AL2.0,LGPL2.1}'
+        }
+    }
+
+    flavorDimensions = ['environments']
+
+    productFlavors {
+        dev {
+            dimension 'environments'
+        }
+        beta {
+            dimension 'environments'
+        }
+        rc {
+            dimension 'environments'
+        }
+        prod {
+            dimension 'environments'
+        }
+    }
+}
+
+dependencies {
+    implementation "androidx.startup:startup-runtime:1.2.0"
+    implementation "org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.0"
+    implementation "org.jetbrains.kotlinx:kotlinx-collections-immutable:0.3.8"
+    implementation "androidx.activity:activity-compose:1.9.3"
+
+    // Compose
+    implementation platform("androidx.compose:compose-bom:2024.11.00")
+    implementation "androidx.core:core-ktx"
+    implementation "androidx.compose.material3:material3"
+    implementation "androidx.compose.material:material-icons-extended"
+    implementation "androidx.activity:activity-compose"
+    implementation "androidx.compose.ui:ui"
+    implementation "androidx.compose.ui:ui-graphics"
+    implementation "androidx.compose.ui:ui-tooling-preview"
+    implementation "androidx.compose.runtime:runtime-livedata"
+    implementation "androidx.lifecycle:lifecycle-runtime-ktx"
+    implementation "androidx.lifecycle:lifecycle-runtime-compose"
+    debugImplementation "androidx.compose.ui:ui-tooling"
+    debugImplementation "androidx.compose.ui:ui-test-manifest"
+
+    // Truvideo SDK Common
+    var commonVersion = properties.getProperty("commonVersion")
+    implementation "com.github.truvideo:truvideo-sdk-android-common:$commonVersion"
+
+    // Truvideo SDK Components
+    implementation "com.github.truvideo:truvideo-sdk-android-components:0.1.20"
+
+    // Glide
+    implementation "com.github.bumptech.glide:compose:1.0.0-beta01"
+    implementation "com.vanniktech:android-image-cropper:4.5.0"
+}
+
+project.afterEvaluate {
+    publishing {
+        publications {
+            library(MavenPublication) {
+                setGroupId 'com.github.truvideo'
+                setArtifactId 'truvideo-sdk-android-image-local'
+                version android.defaultConfig.versionName
+
+                def environment = properties.getProperty("environment")
+                switch (environment) {
+                    case 'dev':
+                        artifact bundleDevReleaseAar
+                        break
+
+                    case 'beta':
+                        artifact bundleBetaReleaseAar
+                        break
+
+                    case 'rc':
+                        artifact bundleRcReleaseAar
+                        break
+
+                    case 'prod':
+                        artifact bundleProdReleaseAar
+                        break
+                }
+
+                pom.withXml {
+                    //noinspection GroovyImplicitNullArgumentCall
+                    def dependenciesNode = asNode().appendNode('dependencies')
+                    configurations.implementation.allDependencies.each {
+                        def dependencyNode = dependenciesNode.appendNode('dependency')
+                        dependencyNode.appendNode('groupId', it.group)
+                        dependencyNode.appendNode('artifactId', it.name)
+                        dependencyNode.appendNode('version', it.version)
+                    }
+                }
+            }
+        }
+    }
+}
