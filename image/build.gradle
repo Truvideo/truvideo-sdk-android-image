@@ -1,0 +1,160 @@
+plugins {
+    id 'com.android.library'
+    id 'org.jetbrains.kotlin.android'
+    id 'maven-publish'
+    id 'org.jetbrains.kotlin.plugin.serialization'
+    id 'org.jetbrains.kotlin.plugin.compose'
+}
+
+def propertiesFile = rootProject.file("image/src/main/assets/version-image.properties")
+def properties = new Properties()
+properties.load(new FileInputStream(propertiesFile))
+
+android {
+    namespace 'com.truvideo.sdk.image'
+    compileSdkVersion 36
+
+    defaultConfig {
+        minSdk 24
+        targetSdk 36
+        versionName properties.getProperty("versionName")
+        vectorDrawables {
+            useSupportLibrary true
+        }
+
+        buildConfigField "String", "VERSION", "\"${properties.getProperty("versionName")}\""
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+
+    buildFeatures {
+        compose = true
+        buildConfig = true
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    kotlin {
+        jvmToolchain(17)
+    }
+
+    packaging {
+        resources {
+            it.excludes += '/META-INF/{AL2.0,LGPL2.1}'
+        }
+    }
+
+    flavorDimensions = ['environments']
+
+    productFlavors {
+        dev {
+            dimension 'environments'
+        }
+        beta {
+            dimension 'environments'
+        }
+        rc {
+            dimension 'environments'
+        }
+        prod {
+            dimension 'environments'
+        }
+    }
+}
+
+dependencies {
+    implementation "androidx.startup:startup-runtime:1.2.0"
+    implementation "org.jetbrains.kotlinx:kotlinx-serialization-json:1.9.0"
+    implementation "org.jetbrains.kotlinx:kotlinx-collections-immutable:0.4.0"
+    implementation 'androidx.exifinterface:exifinterface:1.4.1'
+
+    // Truvideo SDK Common
+    var commonVersion = properties.getProperty("commonVersion")
+    implementation("com.github.truvideo:truvideo-sdk-android-common:$commonVersion")
+//    implementation("truvideo.sdk.common:shared:$commonVersion")
+
+    // Truvideo SDK Components
+    implementation "com.github.truvideo:truvideo-sdk-android-components:0.1.22"
+
+    // Compose
+    implementation platform('androidx.compose:compose-bom:2025.11.00')
+    implementation 'androidx.activity:activity-compose'
+    implementation 'androidx.compose.ui:ui'
+    implementation 'androidx.compose.ui:ui-graphics'
+    implementation 'androidx.compose.ui:ui-tooling-preview'
+    implementation 'androidx.compose.runtime:runtime-livedata'
+    implementation 'androidx.lifecycle:lifecycle-runtime-ktx'
+    implementation 'androidx.lifecycle:lifecycle-runtime-compose'
+    debugImplementation 'androidx.compose.ui:ui-tooling'
+    debugImplementation 'androidx.compose.ui:ui-test-manifest'
+
+    // Material Icons
+    implementation 'androidx.compose.material3:material3:1.4.0'
+    implementation 'androidx.compose.material:material-icons-extended:1.7.8'
+
+    // Glide
+    implementation "com.github.bumptech.glide:compose:1.0.0-beta08"
+    implementation "com.vanniktech:android-image-cropper:4.6.0"
+}
+
+project.afterEvaluate {
+    publishing {
+        publications {
+            library(MavenPublication) {
+                setGroupId 'com.github.truvideo'
+                setArtifactId 'truvideo-sdk-android-image-local'
+                version android.defaultConfig.versionName
+
+                def environment = properties.getProperty("environment")
+
+                def artifactTask
+                switch (environment) {
+                    case 'dev':
+                        artifactTask = tasks.named("bundleDevReleaseAar")
+                        break
+
+                    case 'beta':
+                        artifactTask = tasks.named("bundleBetaReleaseAar")
+                        break
+
+                    case 'rc':
+                        artifactTask = tasks.named("bundleRcReleaseAar")
+                        break
+
+                    case 'prod':
+                        artifactTask = tasks.named("bundleProdReleaseAar")
+                        break
+
+                    default:
+                        artifactTask = tasks.named("bundleProdReleaseAar")
+                        break
+                }
+
+                artifact artifactTask
+
+                def dependencies = configurations.implementation.allDependencies
+                        .findAll { it.group != null }
+                        .collect { [group: it.group, name: it.name, version: it.version] }
+
+                pom.withXml {
+                    //noinspection GroovyImplicitNullArgumentCall
+                    def dependenciesNode = asNode().appendNode('dependencies')
+                    dependencies.each {
+                        def dependencyNode = dependenciesNode.appendNode('dependency')
+                        dependencyNode.appendNode('groupId', it.group)
+                        dependencyNode.appendNode('artifactId', it.name)
+                        dependencyNode.appendNode('version', it.version)
+                    }
+                }
+            }
+        }
+    }
+}
